@@ -1,0 +1,11 @@
+chart-dirs:
+  - .
+check-version-increment: false
+target-branch: main
+validate-maintainers: false
+
+namespace: chart-testing
+release-label: app.kubernetes.io/instance
+helm-extra-args: --timeout 600s
+helm-extra-set-args: >
+  --set imagePullSecrets[0].name=image-pull

@@ -1,0 +1,148 @@
+{{- if .Values.aigw.enable -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "aigw.fullname" . }}
+  labels:
+    {{- include "aigw.labels" . | nindent 4 }}
+    {{- include "aigw.selectorLabels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.aigw.replicas }}
+  selector:
+    matchLabels:
+      {{- include "aigw.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+      {{- with .Values.aigw.annotations }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+        {{- if .Values.config.create }}
+        checksum/config: {{ .Values.config.contents | sha256sum }}
+        {{- end }}
+      labels:
+        {{- include "aigw.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- if or .Values.serviceAccount.create .Values.serviceAccount.name }}
+      serviceAccountName: {{ include "aigw.serviceAccountName" . }}
+      {{- end }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.aigw.securityContext | nindent 8 }}
+      containers:
+        - name: {{ include "aigw.fullname" . }}
+          image: "{{ .Values.aigw.image.repository }}:{{ .Values.aigw.image.tag }}"
+          imagePullPolicy: {{ .Values.aigw.image.pullPolicy }}
+          command:
+            - aigw
+          args:
+            - start
+            - /aigw/aigw.yaml
+            - --health-server-port={{ .Values.aigw.healthServer.port }}
+            {{- if .Values.aigw.storage.enable }}
+            - --file-storage
+            - --storage-path=/cache
+            {{- end }}
+            {{- if .Values.aigw.exporter.enable }}
+            {{- include "aigw.validateExporterStorage" . }}
+            - --exporter-enable
+            - --exporter-type="{{ .Values.aigw.exporter.type }}"
+            - --exporter-batch-size={{ .Values.aigw.exporter.batchSize }}
+            - --exporter-remove-files={{ .Values.aigw.exporter.removeFiles }}
+            - --exporter-workers={{ .Values.aigw.exporter.workers }}
+            {{- if and .Values.aigw.exporter.enable (eq .Values.aigw.exporter.type "s3") }}
+            - --exporter-s3-bucket="{{ .Values.aigw.exporter.s3Bucket }}"
+            - --exporter-s3-upload-timeout={{ .Values.aigw.exporter.s3UploadTimeout }}
+            {{- end }}
+            {{- end }}
+          env:
+            - name: F5_LICENSE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.license.secretName }}
+                  key: {{ .Values.license.secretKey }}
+            - name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+              value: "{{ .Values.tracing.endpoint }}"
+            - name: POD_UUID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.uid
+              {{- with .Values.aigw.env }}
+                {{- toYaml . | nindent 12 }}
+              {{- end }}
+          ports:
+            - name: gateway
+              containerPort: 4141
+              protocol: TCP
+            - name: admin
+              containerPort: 8080
+              protocol: TCP
+            - name: health
+              containerPort: {{ .Values.aigw.healthServer.port }}
+              protocol: TCP
+          securityContext:
+            {{- toYaml .Values.aigw.containerSecurityContext | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: health
+            failureThreshold: 5
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: health
+          volumeMounts:
+            - name: aigw-config
+              mountPath: /aigw
+              readOnly: true
+            {{- if and .Values.aigw.storage.enable }}
+            - name: aigw-cache
+              mountPath: /cache
+            {{- end }}
+          resources:
+            {{- toYaml .Values.aigw.resources | nindent 12 }}
+      volumes:
+        - name: aigw-config
+          configMap:
+            name: {{ include "aigw.configName" . }}
+        {{- if and .Values.aigw.storage.enable }}
+        - name: aigw-cache
+          {{- if and .Values.aigw.storage.enable .Values.aigw.storage.persistence.enable }}
+          ephemeral:
+            volumeClaimTemplate:
+              metadata:
+                labels:
+                  type: {{ include "aigw.storageCacheName" . }}
+              spec:
+                capacity:
+                  storage: {{ .Values.aigw.storage.persistence.size }}
+                accessModes:
+                  - {{ .Values.aigw.storage.persistence.accessMode }}
+                storageClassName: "{{ .Values.aigw.storage.persistence.storageClass }}"
+                resources:
+                  requests:
+                    storage: {{ .Values.aigw.storage.persistence.size }}
+          {{- end }}
+          {{- if and .Values.aigw.storage.enable (not .Values.aigw.storage.persistence.enable) }}
+          emptyDir: {}
+          {{- end }}
+        {{- end }}
+      {{- with .Values.aigw.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.aigw.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.aigw.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

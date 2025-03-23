@@ -1,0 +1,219 @@
+---
+# Source: aigw/templates/aigw-serviceaccount.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name:  aigw
+  labels:
+    helm.sh/chart: aigw-0.0.1
+    app.kubernetes.io/version: "v0.1.0"
+    app.kubernetes.io/managed-by: Helm
+---
+# Source: aigw/templates/aigw-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aigw-config
+  labels:
+    helm.sh/chart: aigw-0.0.1
+    app.kubernetes.io/version: "v0.1.0"
+    app.kubernetes.io/managed-by: Helm
+data:
+  aigw.yaml: | 
+    mode: standalone
+    
+    server:
+      address: :4141
+    
+    adminServer:
+      address: :8080
+---
+# Source: aigw/templates/aigw-processors-f5-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: aigw-processors-f5
+  labels:
+    helm.sh/chart: aigw-0.0.1
+    app.kubernetes.io/version: "v0.1.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: aigw-processors-f5
+    app.kubernetes.io/instance: aigw
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: aigw-processors-f5
+    app.kubernetes.io/instance: aigw
+---
+# Source: aigw/templates/aigw-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: aigw
+  labels:
+    helm.sh/chart: aigw-0.0.1
+    app.kubernetes.io/version: "v0.1.0"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  type: ClusterIP
+  ports:
+    - name: gateway
+      port: 80
+      targetPort: gateway
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: aigw
+    app.kubernetes.io/instance: aigw
+---
+# Source: aigw/templates/aigw-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aigw
+  labels:
+    helm.sh/chart: aigw-0.0.1
+    app.kubernetes.io/version: "v0.1.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: aigw
+    app.kubernetes.io/instance: aigw
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: aigw
+      app.kubernetes.io/instance: aigw
+  template:
+    metadata:
+      annotations:
+        checksum/config: 40cb27a35f1cab36c3b8cdd8946a235447daca4666c20126eb4a920e4650779c
+      labels:
+        app.kubernetes.io/name: aigw
+        app.kubernetes.io/instance: aigw
+    spec:
+      serviceAccountName: aigw
+      securityContext:
+        fsGroup: 101
+        runAsGroup: 101
+        runAsNonRoot: true
+        runAsUser: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: aigw
+          image: "reg.edgecnf.com/aigw/aigw:v0.1.0"
+          imagePullPolicy: IfNotPresent
+          command:
+            - aigw
+          args:
+            - start
+            - /aigw/aigw.yaml
+            - --health-server-port=8081
+          env:
+            - name: F5_LICENSE
+              valueFrom:
+                secretKeyRef:
+                  name: f5-license
+                  key: license
+            - name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+              value: ""
+            - name: POD_UUID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.uid
+          ports:
+            - name: gateway
+              containerPort: 4141
+              protocol: TCP
+            - name: admin
+              containerPort: 8080
+              protocol: TCP
+            - name: health
+              containerPort: 8081
+              protocol: TCP
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: health
+            failureThreshold: 5
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: health
+          volumeMounts:
+            - name: aigw-config
+              mountPath: /aigw
+              readOnly: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 50Mi
+      volumes:
+        - name: aigw-config
+          configMap:
+            name: aigw-config
+---
+# Source: aigw/templates/aigw-processors-f5-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aigw-processors-f5
+  labels:
+    helm.sh/chart: aigw-0.0.1
+    app.kubernetes.io/version: "v0.1.0"
+    app.kubernetes.io/managed-by: Helm
+    app.kubernetes.io/name: aigw-processors-f5
+    app.kubernetes.io/instance: aigw
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: aigw-processors-f5
+      app.kubernetes.io/instance: aigw
+  template:
+    metadata:
+      annotations:
+      labels:
+        app.kubernetes.io/name: aigw-processors-f5
+        app.kubernetes.io/instance: aigw
+    spec:
+      serviceAccountName: aigw
+      securityContext:
+        fsGroup: 101
+        runAsGroup: 101
+        runAsNonRoot: true
+        runAsUser: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: aigw-processors-f5
+          image: "reg.edgecnf.com/aigw/aigw-processors-f5:v0.1.0"
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: TLS_ENABLED
+              value: "false"
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+          resources:
+            null

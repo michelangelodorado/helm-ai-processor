@@ -1,0 +1,24 @@
+{{- if and .Values.aigw.enable .Values.aigw.service.enable -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "aigw.fullname" . }}
+  labels:
+    {{- include "aigw.labels" . | nindent 4 }}
+    {{- with .Values.aigw.service.annotations }}
+    annotations:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+spec:
+  type: {{ .Values.aigw.service.type }}
+  ports:
+    - name: gateway
+      port: {{ .Values.aigw.service.port }}
+      targetPort: gateway
+      protocol: TCP
+      {{- if .Values.aigw.service.nodePort }}
+      nodePort: {{ .Values.aigw.service.nodePort }}
+      {{- end }}
+  selector:
+    {{- include "aigw.selectorLabels" . | nindent 4 }}
+{{- end }}

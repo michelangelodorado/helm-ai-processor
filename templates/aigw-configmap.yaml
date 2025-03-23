@@ -1,0 +1,10 @@
+{{- if .Values.config.create -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "aigw.configName" . }}
+  labels:
+    {{- include "aigw.labels" . | nindent 4 }}
+data:
+  aigw.yaml: | {{ .Values.config.contents | nindent 4 }}
+{{- end }}

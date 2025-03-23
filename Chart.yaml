@@ -1,0 +1,15 @@
+apiVersion: v2
+name: aigw
+description: F5 AI Gateway
+type: application
+home: https://f5.com/products/ai-gateway
+sources:
+  - https://aigateway-preview.clouddocs.f5.com
+version: 0.0.1
+appVersion: v0.1.0
+kubeVersion: ">= 1.25.0-0"
+keywords:
+  - f5
+  - kubernetes
+  - ai
+  - gateway

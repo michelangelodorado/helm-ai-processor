@@ -1,0 +1,60 @@
+{{- if .Values.processors.f5.enable -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "aigw-processors-f5.fullname" . }}
+  labels:
+    {{- include "aigw.labels" . | nindent 4 }}
+    {{- include "aigw-processors-f5.selectorLabels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.processors.f5.replicas }}
+  selector:
+    matchLabels:
+      {{- include "aigw-processors-f5.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+      {{- with .Values.processors.f5.annotations }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "aigw-processors-f5.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- if or .Values.serviceAccount.create .Values.serviceAccount.name }}
+      serviceAccountName: {{ include "aigw.serviceAccountName" . }}
+      {{- end }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.processors.f5.securityContext | nindent 8 }}
+      containers:
+        - name: {{ include "aigw-processors-f5.fullname" . }}
+          image: "{{ .Values.processors.f5.image.repository }}:{{ .Values.processors.f5.image.tag }}"
+          imagePullPolicy: {{ .Values.processors.f5.image.pullPolicy }}
+          env:
+              {{- with .Values.processors.f5.env }}
+                {{- toYaml . | nindent 12 }}
+              {{- end }}
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          securityContext:
+            {{- toYaml .Values.processors.f5.containerSecurityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.processors.f5.resources | nindent 12 }}
+      {{- with .Values.processors.f5.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.processors.f5.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.processors.f5.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

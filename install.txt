@@ -1,0 +1,5 @@
+helm -n ai-gateway install ai-processor -f values-ai-processor.yaml .
+
+helm -n ai-gateway upgrade ai-processor -f values-ai-processor.yaml .
+
+helm -n ai-gateway delete ai-processor
