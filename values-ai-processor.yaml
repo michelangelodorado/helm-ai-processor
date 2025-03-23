@@ -51,7 +51,7 @@ aigw:
 
   image:
     # -- Repository for the aigw image
-    repository: reg.ai.local/aigw/aigw
+    repository: michelangelodorado/aigw
 
     # -- Version tag for the aigw image
     tag: v0.1.0
@@ -168,7 +168,7 @@ processors:
 
     image:
       # -- Repository for the aigw-processors-f5 image
-      repository: reg.ai.local/aigw/aigw-processors-f5
+      repository: michelangelodorado/aigw-processors-f5
 
       # -- Version tag for the aigw-processors-f5 image
       tag: v0.1.0
